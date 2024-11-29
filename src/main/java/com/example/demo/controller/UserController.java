@@ -6,7 +6,6 @@ import com.example.demo.model.Attendance;
 import com.example.demo.model.User;
 import com.example.demo.service.AttendanceService;
 import com.example.demo.service.UserService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -23,17 +22,16 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 @RestController
 @RequestMapping("api/users")
 public class UserController {
-    @Value("${face.images.directory}")
+    @Value("${face.images.directory.face}")
     private String faceImagesDirectory;
-
+    @Value("${face.images.directory.fingerPrint}")
+    private String fingerImagesDirectory;
     private final RestTemplate restTemplate;
 
 
@@ -51,6 +49,45 @@ public class UserController {
     public ResponseEntity<User> registerUser(@RequestBody User user) {
         User createdUser = userService.createUser(user);
         return ResponseEntity.ok(createdUser);
+    }
+
+    @PostMapping("/register-fingerprint")
+    public ResponseEntity<String> registerFingerprint(@RequestParam("username") String username,  @RequestParam("fingerprint") MultipartFile image){
+        System.out.println("Image size: " + image.getSize());
+        if (username == null || username.isEmpty() || image.isEmpty()) {
+            return ResponseEntity.badRequest().body("Username and image file are required.");
+        }
+        System.out.println(username);
+        File directory = new File(fingerImagesDirectory);
+        if (!directory.exists()) {
+            directory.mkdirs(); // Create the directory if it doesn't exist
+        }
+        String imagePath = directory.getAbsolutePath() + File.separator + image.getOriginalFilename();
+        try (FileOutputStream fos = new FileOutputStream(imagePath)) {
+            fos.write(image.getBytes());
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body("Failed to save the image: " + e.getMessage());
+        }
+        String flaskUrl = "http://localhost:5001/register"; // Flask endpoint
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("label", username);
+        body.add("image", new FileSystemResource(imagePath));
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+        ResponseEntity<String> response;
+
+        try {
+            response = restTemplate.exchange(flaskUrl, HttpMethod.POST, requestEntity, String.class);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Failed to communicate with the Flask application: " + e.getMessage());
+        }
+        if (response.getStatusCode().is2xxSuccessful()) {
+            return ResponseEntity.ok("Face registered successfully: " + username);
+        } else {
+            return ResponseEntity.status(response.getStatusCode()).body("Error registering face with model: " + response.getBody());
+        }
     }
 
     @PostMapping("/register-face")
@@ -93,6 +130,63 @@ public class UserController {
             return ResponseEntity.ok("Face registered successfully: " + username);
         } else {
             return ResponseEntity.status(response.getStatusCode()).body("Error registering face with model: " + response.getBody());
+        }
+    }
+
+    @PostMapping("/check-in-finger/{userId}")
+    public ResponseEntity<?> checkInByFinger(@RequestParam("fingerprint") MultipartFile file, @PathVariable Long userId) throws IOException {
+        String flaskUrl = "http://localhost:5001/recognize"; // Flask endpoint
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        ByteArrayResource byteArrayResource = new ByteArrayResource(file.getBytes()) {
+            @Override
+            public String getFilename() {
+                return file.getOriginalFilename(); // Giữ lại tên file gốc
+            }
+        };
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("image", byteArrayResource);
+
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+        try {
+            ResponseEntity<RecognitionResult> response = restTemplate.exchange(
+                    flaskUrl,
+                    HttpMethod.POST,
+                    requestEntity,
+                    RecognitionResult.class
+            );
+            System.out.println("Response JSON: " + response.getBody());
+
+            RecognitionResult result = response.getBody();
+
+            if (response.getStatusCode().is2xxSuccessful() && result != null) {
+                if (result.isResult()) {
+                    System.out.println(Objects.equals(result.getLabel(), String.valueOf(userId)));
+                    if(Objects.equals(result.getLabel(), String.valueOf(userId))){
+                        Attendance attendance = attendanceService.checkIn(userId);
+                        CheckInResponse responseChecking = new CheckInResponse(result, attendance.getId());
+                        return ResponseEntity.ok(responseChecking);
+                    }
+                    return ResponseEntity.status(401).body(result);
+                } else {
+                    return ResponseEntity.status(400).body(result);
+                }
+            } else {
+                return ResponseEntity.status(response.getStatusCode())
+                        .body("Unexpected response from Flask: " + response.getStatusCode());
+            }
+
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            // Xử lý lỗi HTTP cụ thể
+            return ResponseEntity.status(e.getStatusCode())
+                    .body("HTTP Error: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
+        } catch (Exception e) {
+            // Xử lý lỗi khác
+            e.printStackTrace();  // In stack trace để biết thêm chi tiết
+            return ResponseEntity.status(500).body("Internal Error: " + e.getMessage());
         }
     }
 
@@ -153,8 +247,6 @@ public class UserController {
         }
     }
 
-
-
     @PostMapping("/check-out/{userId}")
     public ResponseEntity<?> checkOut(@RequestParam("faceImage") MultipartFile file, @RequestParam("attendanceId") Long attendanceId, @PathVariable Long userId) throws IOException {
         if(!attendanceService.hasCheckedInToday(userId)){
@@ -189,6 +281,65 @@ public class UserController {
 
             if (response.getStatusCode().is2xxSuccessful() && result != null) {
                 if (result.isResult()) {
+                    if(Objects.equals(result.getLabel(), String.valueOf(userId))){
+                        attendanceService.checkOut(userId, attendanceId);
+                        return ResponseEntity.ok(result);
+                    }
+                    return ResponseEntity.status(401).body(result);
+                } else {
+                    return ResponseEntity.status(400).body(result);
+                }
+            } else {
+                return ResponseEntity.status(response.getStatusCode())
+                        .body("Unexpected response from Flask: " + response.getStatusCode());
+            }
+
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            // Xử lý lỗi HTTP cụ thể
+            return ResponseEntity.status(e.getStatusCode())
+                    .body("HTTP Error: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
+        } catch (Exception e) {
+            // Xử lý lỗi khác
+            e.printStackTrace();  // In stack trace để biết thêm chi tiết
+            return ResponseEntity.status(500).body("Internal Error: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/check-out-finger/{userId}")
+    public ResponseEntity<?> checkOutByFinger(@RequestParam("fingerprint") MultipartFile file,@RequestParam("attendanceId") Long attendanceId, @PathVariable Long userId) throws IOException {
+        if(!attendanceService.hasCheckedInToday(userId)){
+            return ResponseEntity.status(400).body("User không có check in");
+        }
+        String flaskUrl = "http://localhost:5001/recognize"; // Flask endpoint
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        ByteArrayResource byteArrayResource = new ByteArrayResource(file.getBytes()) {
+            @Override
+            public String getFilename() {
+                return file.getOriginalFilename(); // Giữ lại tên file gốc
+            }
+        };
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("image", byteArrayResource);
+
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+        try {
+            ResponseEntity<RecognitionResult> response = restTemplate.exchange(
+                    flaskUrl,
+                    HttpMethod.POST,
+                    requestEntity,
+                    RecognitionResult.class
+            );
+            System.out.println("Response JSON: " + response.getBody());
+
+            RecognitionResult result = response.getBody();
+
+            if (response.getStatusCode().is2xxSuccessful() && result != null) {
+                if (result.isResult()) {
+                    System.out.println(Objects.equals(result.getLabel(), String.valueOf(userId)));
                     if(Objects.equals(result.getLabel(), String.valueOf(userId))){
                         attendanceService.checkOut(userId, attendanceId);
                         return ResponseEntity.ok(result);
