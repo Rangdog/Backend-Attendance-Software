@@ -12,21 +12,13 @@ import java.util.Date;
 import java.util.List;
 @Repository
 public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
-    List<Attendance> findByUser_IdAndDate(Long userId, Date date);
-    List<Attendance> findByUser_Id(Long userId);
-    @Query(value = "SELECT * FROM attendance a WHERE a.user_id = :userId AND a.date BETWEEN :startDate AND :endDate", nativeQuery = true)
-    List<Attendance> findByUserIdAndDateBetween(
-            @Param("userId") Long userId,
+    @Query(value = "SELECT * FROM attendance a WHERE a.employee_id = :employeeId AND a.date BETWEEN :startDate AND :endDate", nativeQuery = true)
+    List<Attendance> findByEmployeeIdAndDateBetween(
+            @Param("employeeId") Long employeeId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate
     );
-    List<Attendance> findAllByUserId(Long userId);
 
-    boolean existsByUser_IdAndDate(Long userId, LocalDate date);
-
-    Attendance findFirstByUser_IdAndDate(Long userId, LocalDate date);
-
-
-
-
+    boolean existsByEmployeeInfo_EmployeeIdAndDate(Long employee_id, LocalDate date);
+    Attendance findFirstByEmployeeInfo_EmployeeIdAndDate(Long employee_id, LocalDate date);
 }

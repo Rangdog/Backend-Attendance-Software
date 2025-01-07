@@ -25,9 +25,10 @@ public class RequestLeave {
     @Column(length = 500)
     private String reason;
 
-    private Boolean approve = false;
+    private int approve = 0;
 
     @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @JoinColumn(name = "employee_id", nullable = false)
+    private EmployeeInfo employeeInfo;
+
 }

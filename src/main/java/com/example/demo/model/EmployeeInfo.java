@@ -3,6 +3,8 @@ package com.example.demo.model;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.List;
+
 @Entity
 @Data
 @Table(name = "employee_info")
@@ -25,4 +27,7 @@ public class EmployeeInfo {
 
     @Column(name = "position", nullable = false)
     private Integer position; // 0 là nhân viên, 1 là trưởng phòng, 2 là quản lý
+
+    @OneToMany(mappedBy = "employeeInfo", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<MonthlySalary> monthlySalaries;
 }

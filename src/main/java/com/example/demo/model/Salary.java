@@ -18,11 +18,11 @@ public class Salary {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @JoinColumn(name = "employee_id", nullable = false)
+    private EmployeeInfo employeeInfo;
 
     private Double salary;
 
-    @Column(name = "datecontract")
+    @Column(name = "date")
     private LocalDate dateContract;
 }

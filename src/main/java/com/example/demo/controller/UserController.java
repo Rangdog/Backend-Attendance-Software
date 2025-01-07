@@ -1,10 +1,13 @@
 package com.example.demo.controller;
 
 import com.example.demo.DTO.CheckInResponse;
+import com.example.demo.DTO.CheckOutResponse;
 import com.example.demo.DTO.RecognitionResult;
 import com.example.demo.model.Attendance;
+import com.example.demo.model.EmployeeInfo;
 import com.example.demo.model.User;
 import com.example.demo.service.AttendanceService;
+import com.example.demo.service.EmployeeInfoService;
 import com.example.demo.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +42,8 @@ public class UserController {
     private UserService userService;
     @Autowired
     private AttendanceService attendanceService;
+    @Autowired
+    private EmployeeInfoService employeeInfoService;
 
     public UserController(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
@@ -133,8 +138,8 @@ public class UserController {
         }
     }
 
-    @PostMapping("/check-in-finger/{userId}")
-    public ResponseEntity<?> checkInByFinger(@RequestParam("fingerprint") MultipartFile file, @PathVariable Long userId) throws IOException {
+    @PostMapping("/check-in-finger/{employeeId}")
+    public ResponseEntity<?> checkInByFinger(@RequestParam("fingerprint") MultipartFile file, @PathVariable Long employeeId) throws IOException {
         String flaskUrl = "http://localhost:5001/recognize"; // Flask endpoint
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -164,10 +169,12 @@ public class UserController {
 
             if (response.getStatusCode().is2xxSuccessful() && result != null) {
                 if (result.isResult()) {
-                    System.out.println(Objects.equals(result.getLabel(), String.valueOf(userId)));
-                    if(Objects.equals(result.getLabel(), String.valueOf(userId))){
-                        Attendance attendance = attendanceService.checkIn(userId);
-                        CheckInResponse responseChecking = new CheckInResponse(result, attendance.getId());
+                    System.out.println(employeeId);
+                    System.out.println(Objects.equals(result.getLabel(), String.valueOf(employeeId)));
+                    if(Objects.equals(result.getLabel(), String.valueOf(employeeId))){
+                        Attendance attendance = attendanceService.checkIn(employeeId, null);
+                        EmployeeInfo employeeInfo = employeeInfoService.getEmployeeById(employeeId);
+                        CheckInResponse responseChecking = new CheckInResponse(result, attendance.getId(), employeeInfo.getFullName());
                         return ResponseEntity.ok(responseChecking);
                     }
                     return ResponseEntity.status(401).body(result);
@@ -221,10 +228,10 @@ public class UserController {
 
             if (response.getStatusCode().is2xxSuccessful() && result != null) {
                 if (result.isResult()) {
-                    System.out.println(Objects.equals(result.getLabel(), String.valueOf(userId)));
                     if(Objects.equals(result.getLabel(), String.valueOf(userId))){
-                        Attendance attendance = attendanceService.checkIn(userId);
-                        CheckInResponse responseChecking = new CheckInResponse(result, attendance.getId());
+                        Attendance attendance = attendanceService.checkIn(userId,file.getBytes());
+                        EmployeeInfo employeeInfo = employeeInfoService.getEmployeeById(userId);
+                        CheckInResponse responseChecking = new CheckInResponse(result, attendance.getId(),employeeInfo.getFullName(), file.getBytes() );
                         return ResponseEntity.ok(responseChecking);
                     }
                     return ResponseEntity.status(401).body(result);
@@ -282,8 +289,10 @@ public class UserController {
             if (response.getStatusCode().is2xxSuccessful() && result != null) {
                 if (result.isResult()) {
                     if(Objects.equals(result.getLabel(), String.valueOf(userId))){
-                        attendanceService.checkOut(userId, attendanceId);
-                        return ResponseEntity.ok(result);
+                        attendanceService.checkOut(userId, attendanceId, file.getBytes());
+                        EmployeeInfo employeeInfo = employeeInfoService.getEmployeeById(userId);
+                        CheckOutResponse checkOutResponse = new CheckOutResponse(result,  attendanceId,employeeInfo.getFullName(), file.getBytes());
+                        return ResponseEntity.ok(checkOutResponse);
                     }
                     return ResponseEntity.status(401).body(result);
                 } else {
@@ -341,8 +350,10 @@ public class UserController {
                 if (result.isResult()) {
                     System.out.println(Objects.equals(result.getLabel(), String.valueOf(userId)));
                     if(Objects.equals(result.getLabel(), String.valueOf(userId))){
-                        attendanceService.checkOut(userId, attendanceId);
-                        return ResponseEntity.ok(result);
+                        attendanceService.checkOut(userId, attendanceId, null);
+                        EmployeeInfo employeeInfo = employeeInfoService.getEmployeeById(userId);
+                        CheckOutResponse checkOutResponse = new CheckOutResponse(result,  attendanceId,employeeInfo.getFullName(), file.getBytes());
+                        return ResponseEntity.ok(checkOutResponse);
                     }
                     return ResponseEntity.status(401).body(result);
                 } else {
@@ -376,5 +387,21 @@ public class UserController {
     public ResponseEntity<User> getUserByUsername(@PathVariable String username) {
         User user = userService.findByUsername(username);
         return ResponseEntity.ok(user);
+    }
+
+    @PatchMapping("/{id}/lock")
+    public String lockUser(@PathVariable Long id) {
+        User user = userService.findById(id);
+        user.setLocked(true);
+        userService.update(user);
+        return "User locked successfully.";
+    }
+
+    @PatchMapping("/{id}/unlock")
+    public String unlockUser(@PathVariable Long id) {
+        User user = userService.findById(id);
+        user.setLocked(false);
+        userService.update(user);
+        return "User unlocked successfully.";
     }
 }

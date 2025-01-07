@@ -21,44 +21,13 @@ public class AttendanceController {
     @Autowired
     private AttendanceService attendanceService;
     @Autowired
-    private AttendanceHistoryService attendanceHistoryService;
-    @Autowired
     private EmployeeInfoService employeeInfoService;
     @Autowired
     private RequestLeaveService requestLeaveService;
     @Autowired
     private SalaryService salaryService;
-
-
-    // Endpoint để check-in
-//    @PostMapping("/checkin")
-//    public ResponseEntity<Attendance> checkIn(@RequestBody Attendance attendance) {
-//        attendance.setCheckIn(LocalDate.now().atStartOfDay()); // Thay đổi thời gian check-in
-//        Attendance checkedInAttendance = attendanceService.checkIn(attendance);
-//
-//        // Lưu lịch sử chấm công
-//        AttendanceHistory history = new AttendanceHistory();
-//        history.setUser(attendance.getUser());
-//        history.setAction(Action.CHECK_IN);
-//        attendanceHistoryService.save(history);
-//
-//        return ResponseEntity.ok(checkedInAttendance);
-//    }
-
-    // Endpoint để check-out
-//    @PostMapping("/checkout")
-//    public ResponseEntity<Attendance> checkOut(@RequestBody Attendance attendance) {
-//        attendance.setCheckOut(LocalDate.now().atStartOfDay()); // Thay đổi thời gian check-out
-//        Attendance checkedOutAttendance = attendanceService.checkOut(attendance);
-//
-//        // Lưu lịch sử chấm công
-//        AttendanceHistory history = new AttendanceHistory();
-//        history.setUser(attendance.getUser());
-//        history.setAction(Action.CHECK_OUT);
-//        attendanceHistoryService.save(history);
-//
-//        return ResponseEntity.ok(checkedOutAttendance);
-//    }
+    @Autowired
+    private MonthlySalaryService monthlySalaryService;
 
     @GetMapping("/hasCheckedInToday/{userId}")
     public ResponseEntity<String> hasCheckedInToday(@PathVariable Long userId){
@@ -70,30 +39,24 @@ public class AttendanceController {
         }
     }
 
-    @GetMapping("/checkCheckinToday/{userId}")
-    public  ResponseEntity<AttendanceDTO> checkCheckInToDay(@PathVariable Long userId){
-        AttendanceDTO attendanceDTO = attendanceService.checkCheckInToday(userId);
+    @GetMapping("/checkCheckinToday/{employee_id}")
+    public  ResponseEntity<AttendanceDTO> checkCheckInToDay(@PathVariable Long employee_id){
+        AttendanceDTO attendanceDTO = attendanceService.checkCheckInToday(employee_id);
         if(attendanceDTO == null){
             return  ResponseEntity.noContent().build();
         }
-        return ResponseEntity.ok(attendanceService.checkCheckInToday(userId));
+        return ResponseEntity.ok(attendanceService.checkCheckInToday(employee_id));
     }
 
 
-    @PostMapping("/request-leave")
-    public ResponseEntity<String> requestLeave(@RequestBody Attendance attendance) {
-        AttendanceHistory history = new AttendanceHistory();
-        history.setUser(attendance.getUser());
-        history.setAction(Action.REQUEST_LEAVE);
-        attendanceHistoryService.save(history);
-        return ResponseEntity.ok("Leave request submitted.");
-    }
 
     // Endpoint để lấy lịch sử chấm công của người dùng
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<List<AttendanceDTO>> getAttendanceByUserId(@PathVariable Long userId, @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,@RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-
-        List<Attendance> attendances = attendanceService.getAttendanceByUserAndDate(userId, startDate, endDate);
+    @GetMapping("/user/{EmployeeInfo}")
+    public ResponseEntity<List<AttendanceDTO>> getAttendanceByUserId(@PathVariable Long EmployeeInfo, @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,@RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        System.out.println(EmployeeInfo);
+        System.out.println(startDate);
+        System.out.println(endDate);
+        List<Attendance> attendances = attendanceService.getAttendanceByUserAndDate(EmployeeInfo, startDate, endDate);
         if (attendances.isEmpty()) {
             return ResponseEntity.noContent().build(); // Trả về 204 nếu không có dữ liệu
         }
@@ -101,7 +64,7 @@ public class AttendanceController {
         for(Attendance attendance: attendances){
             AttendanceDTO attendanceDTO = new AttendanceDTO();
             attendanceDTO.setId(attendance.getId());
-            attendanceDTO.setUserId(attendance.getUser().getId());
+            attendanceDTO.setUserId(attendance.getEmployeeInfo().getUser().getId());
             if(attendance.getCheckIn() == null){
                 attendanceDTO.setCheckIn("");
             }
@@ -122,19 +85,21 @@ public class AttendanceController {
                 attendanceDTO.setDate(attendance.getDate().format(DATE_FORMATTER));
             }
             attendanceDTO.setFinish(attendance.isFinish());
+            attendanceDTO.setFaceIn((attendance.getFaceIn() == null || attendance.getFaceIn().length == 0) ? null : attendance.getFaceIn());
+            attendanceDTO.setFaceOut((attendance.getFaceOut() == null || attendance.getFaceOut().length == 0) ? null : attendance.getFaceOut());
             attendanceDTOS.add(attendanceDTO);
         }
         return ResponseEntity.ok(attendanceDTOS);
     }
 
     @GetMapping("/salary")
-    public double getTotalHoursWorked(@RequestParam Long userId, @RequestParam int year, @RequestParam int month) {
-        double totalHours = attendanceService.getTotalHoursWorkedInMonth(userId, year, Month.of(month));
-        double totalPenaltyHours = attendanceService.calculatePenaltyHours(userId,month,year);
+    public double getTotalHoursWorked(@RequestParam Long employeeId, @RequestParam int year, @RequestParam int month) {
+        double totalHours = attendanceService.getTotalHoursWorkedInMonth(employeeId, year, Month.of(month));
+        double totalPenaltyHours = attendanceService.calculatePenaltyHours(employeeId,month,year);
         double salary = 0;
-        Boolean checkExist = employeeInfoService.checkExist(userId);
+        Boolean checkExist = employeeInfoService.checkExist(employeeId);
         if(checkExist){
-            EmployeeInfo employeeInfo = employeeInfoService.findByUserId(userId);
+            EmployeeInfo employeeInfo = employeeInfoService.findByUserId(employeeId);
             if(employeeInfo.getPosition() == 0){
                 salary = (totalHours * 20000) - (totalPenaltyHours*20000);
             }
@@ -145,7 +110,7 @@ public class AttendanceController {
                 salary = (totalHours * 30000) - (totalPenaltyHours*30000);
             }
         }
-        return attendanceService.getTotalHoursWorkedInMonth(userId, year, Month.of(month));
+        return attendanceService.getTotalHoursWorkedInMonth(employeeId, year, Month.of(month));
     }
 
     public double calculateApprovedLeaveHours(Long userId, int month, int year) {
@@ -203,119 +168,126 @@ public class AttendanceController {
         List<Map<String, Object>> salaryData = new ArrayList<>();
 
         for (EmployeeInfo employee : allEmployees) {
-            Long userId = employee.getUser().getId();
+            Long userId = employee.getEmployeeId();
             String position = employee.getPosition() == 0 ? "Nhân viên" :
                     employee.getPosition() == 1 ? "Trưởng phòng" : "Quản lý";
 
-            // Tổng số ngày làm việc trong tháng
             List<LocalDate> workingDays = getWorkingDays(month, year);
-            double totalEffectiveDays = 0;  // Tổng công sau khi trừ muộn
-              // Tổng trừ do muộn
-            double sumLeaveHours = 0;
-            boolean flagLeave = false;
-            double cong = 22;
-            System.out.println("user: " + userId);
-            // Duyệt từng ngày làm việc trong tháng
-            for (LocalDate workDate: workingDays) {
+            List<Map<String, Object>> dailyDetails = new ArrayList<>(); // Danh sách chi tiết công việc mỗi ngày
+            double totalLeaveHours = 0;
+            for (LocalDate workDate : workingDays) {
                 double totalDeduction = 0;
-                double leaveHours = requestLeaveService.getLeaveHoursForDay(userId,workDate);
-                // Kiểm tra nếu nhân viên có ngày nghỉ phép đã được duyệt
-                if(leaveHours == 9 && !flagLeave){
-                    flagLeave = true;
-                    totalEffectiveDays += 1;  // Nếu nghỉ phép, tính 1 công cho ngày đó
-                    continue;
-                }
-                sumLeaveHours += leaveHours;
+                double leaveHours = requestLeaveService.getLeaveHoursForDay(employee.getEmployeeId(), workDate);
+                double effectiveHours = 0; // Số giờ làm thực tế
+                boolean hasAttendance = false;
 
-                // Kiểm tra chấm công
                 Attendance attendance = attendanceService.getAttendanceByDate(userId, workDate);
                 if (attendance != null && attendance.getCheckIn() != null && attendance.getCheckOut() != null) {
-                    // Tính số giờ muộn
-                    double lateHours = 0;
-                    if(!flagLeave){
-                        if(sumLeaveHours >= 9 && !flagLeave){
-                            leaveHours -= (sumLeaveHours-9);
-                            flagLeave = true;
-                        }
-                        LocalDateTime checkIn = attendance.getCheckIn();
-                        LocalDateTime checkOut = attendance.getCheckOut();
-                        if (attendance.getCheckIn().getHour() < 8) {
-                            checkIn = checkIn.withHour(8).withMinute(0).withSecond(0).withNano(0);
-                        }
-                        if(attendance.getCheckOut().getHour() >= 17){
-                            checkOut = checkOut.withHour(17).withMinute(0).withSecond(0).withNano(0);
-                        }
-                        long diffMinutes = ChronoUnit.MINUTES.between(checkIn, checkOut); // Tính sự chênh lệch theo phút
-                        double diffHours = diffMinutes / 60.0; // Chuyển đổi thành giờ chính xác (có phần thập phân)
-                        lateHours = 9 - leaveHours - diffHours;
+                    hasAttendance = true;
+                    LocalDateTime checkIn = attendance.getCheckIn();
+                    LocalDateTime checkOut = attendance.getCheckOut();
+
+                    if (checkIn.getHour() < 8) {
+                        checkIn = checkIn.withHour(8).withMinute(0).withSecond(0).withNano(0);
                     }
-                    else{
-                        LocalDateTime checkIn = attendance.getCheckIn();
-                        LocalDateTime checkOut = attendance.getCheckOut();
-                        if (attendance.getCheckIn().getHour() < 8) {
-                            checkIn = checkIn.withHour(8).withMinute(0).withSecond(0).withNano(0);
-                        }
-                        if(attendance.getCheckOut().getHour() >= 17){
-                            checkOut = checkOut.withHour(17).withMinute(0).withSecond(0).withNano(0);
-                        }
-                        long diffMinutes = ChronoUnit.MINUTES.between(checkIn, checkOut); // Tính sự chênh lệch theo phút
-                        double diffHours = diffMinutes / 60.0; // Chuyển đổi thành giờ chính xác (có phần thập phân)
-                        lateHours = 9 - diffHours;
+                    if (checkOut.getHour() >= 17) {
+                        checkOut = checkOut.withHour(17).withMinute(0).withSecond(0).withNano(0);
                     }
-                    // Áp dụng các chính sách trừ lương do muộn
-                    if (lateHours >= 0.5 && lateHours < 1) {
-                        totalDeduction += 0.05; // Muộn > 30 phút, trừ 5% lương
-                    } else if (lateHours >= 1 && lateHours <2) {
-                        totalDeduction += 0.1;  // Muộn > 1 giờ, trừ 10% lương
-                    } else if (lateHours >= 2 && lateHours < 4) {
-                        totalDeduction += 0.2;  // Muộn > 2 giờ, trừ 20% lương
-                    } else if (lateHours >= 4 && lateHours <=6) {
-                        totalDeduction += 0.5;  // Muộn > 4 giờ, trừ 50% lương
-                    } else if (lateHours > 6) {
-                        continue;  // Muộn > 6 giờ, coi như không có công
-                    }
-                    cong -= totalDeduction; // Cộng vào số công trừ đi số trừ vì muộn
+                    long diffMinutes = ChronoUnit.MINUTES.between(checkIn, checkOut);
+                    effectiveHours = diffMinutes / 60.0;
+                }
+                double ngayCong = 0;
+                double tienPhat = 0;
+                double time = effectiveHours + leaveHours;
+                if(time > 6){
+                    ngayCong += 1;
+                }
+                else if (time > 4) {
+                    ngayCong +=  0.5;
+                }
+                double tmp =  9 - time;
+                if(tmp > 0.5 && tmp <= 1){
+                    tienPhat = 0.05;
+                } else if (tmp > 1 && tmp <=2) {
+                    tienPhat = 0.1;
+                } else if (tmp > 2 && tmp <= 3) {
+                    tienPhat = 0.2;
+                }
+
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+
+
+                // Ghi lại thông tin chi tiết của ngày làm việc
+                Map<String, Object> dailyDetail = new HashMap<>();
+                dailyDetail.put("ngày", workDate);
+                if((attendance != null && attendance.getCheckIn() != null)){
+                    dailyDetail.put("Thời gian chấm công vào",attendance.getCheckIn().format(formatter));
                 }
                 else{
-                    if(leaveHours <= 2){
-                        cong -= 1;
-                    }
-                    else if (leaveHours <= 5 ){
-                        cong -= 0.5;
-                    }
-                    else if (leaveHours <= 7){
-                        cong -= 0.1;
-                    }
+                    dailyDetail.put("Thời gian chấm công vào","");
+                }
+                if(attendance != null && attendance.getCheckOut() != null){
+                    dailyDetail.put("thời gian chấm công ra", attendance.getCheckOut().format(formatter));
+                }
+                else{
+                    dailyDetail.put("thời gian chấm công ra", "");
+                }
+                dailyDetail.put("ngày công", ngayCong);
+                dailyDetail.put("tiền phạt", tienPhat);
+                dailyDetails.add(dailyDetail);
+            }
+
+            // Lấy mức lương cơ bản từ Salary entity
+            YearMonth yearMonth = YearMonth.of(year, month);
+            LocalDate lastDayOfMonth = yearMonth.atEndOfMonth(); // Lấy ngày cuối cùng
+            Salary salary = salaryService.findSalaryForMonth(userId, lastDayOfMonth);
+            System.out.println(salary == null);
+            double baseSalary = salary != null ? salary.getSalary() : 0;
+            double cong  = 0;
+            double tienPhat = 0;
+            for (Map<String, Object> dailyDetail : dailyDetails) {
+                Object ngayCongObj = dailyDetail.get("ngày công");
+                if (ngayCongObj instanceof Number) {
+                    cong += ((Number) ngayCongObj).doubleValue();
+                }
+                Object tienPhatObj = dailyDetail.get("tiền phạt");
+                if (tienPhatObj instanceof  Number){
+                    tienPhat += ((Number) tienPhatObj).doubleValue();
                 }
             }
-            LocalDate currentDate = LocalDate.now();
-            // Lấy mức lương cơ bản từ Salary entity
-            Salary salary = salaryService.findSalaryForMonth(userId, currentDate);
-            double baseSalary = salary != null ? salary.getSalary() : 0;
-
-            // Tính lương ngày
-            double dailySalary = baseSalary / 22;  // Lương mỗi ngày là lương tháng chia cho 22 ngày
-
-            // Tính tổng lương thực nhận
-            double totalSalary = 0;
-            if(cong > 0){
-                 totalSalary = cong * dailySalary;
-            }
-
-
-
+            double dailySalary = baseSalary / 22;
+            double totalSalary = cong * dailySalary;
             // Thêm dữ liệu vào danh sách kết quả
+            MonthlySalary monthlySalary = new MonthlySalary();
+            monthlySalary.setEmployeeInfo(employee);
+            MonthlySalaryId monthlySalaryId = new MonthlySalaryId();
+            monthlySalaryId.setEmployeeId(employee.getEmployeeId());
+            monthlySalaryId.setMonth(month);
+            monthlySalaryId.setYear(year);
+            monthlySalary.setId(monthlySalaryId);
+            monthlySalary.setCreatedAt(LocalDateTime.now());
+            monthlySalary.setNetSalary(totalSalary - (tienPhat * dailySalary));
+            monthlySalary.setTotalPenalty(tienPhat * dailySalary);
+            monthlySalary.setTotalWorkDays(cong);
+//            if(!monthlySalaryService.checkIfMonthlySalaryExists(monthlySalaryId)){
+////                monthlySalaryService.save(monthlySalary);
+////            }
+            monthlySalaryService.save(monthlySalary);
             Map<String, Object> record = new HashMap<>();
             record.put("userId", userId);
-            record.put("name", employee.getFullName());
-            record.put("position", position);
+            record.put("Tên", employee.getFullName());
+            record.put("Vị trí", position);
             record.put("month", month);
             record.put("year", year);
-            record.put("effectiveDays", cong);
-            record.put("totalSalary", totalSalary);
-            salaryData.add(record);
+            record.put("Tổng lương", totalSalary);
+            record.put("Tổng ngày công", cong);
+            record.put("Tổng tiền phạt", tienPhat * dailySalary);
+            record.put("Tiền thực nhận", totalSalary - (tienPhat * dailySalary));
+            record.put("dailyDetails", dailyDetails); // Thêm chi tiết ngày làm việc
+            if(!employee.getUser().isLocked()){
+                salaryData.add(record);
+            }
         }
-
         return salaryData;
     }
 }

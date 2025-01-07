@@ -14,15 +14,16 @@ public class SalaryService {
     private SalaryRepository salaryRepository;
 
     public Salary createSalary(Salary salary){
+
         return salaryRepository.save(salary);
     }
 
-    public Salary findSalaryForMonth(Long userId, LocalDate month) {
-        return salaryRepository.findFirstByUserIdAndDateContractLessThanEqualOrderByDateContractDesc(userId, month);
+    public Salary findSalaryForMonth(Long employeeId, LocalDate month) {
+        return salaryRepository.findLatestSalaryByEmployeeIdAndDate(employeeId, month);
     }
 
-    public Optional<Salary> findLatestSalaryByUserId(Long userId) {
-        return salaryRepository.findTopByUserIdOrderByDateContractDesc(userId);
+    public Optional<Salary> findLatestSalaryByUserId(Long employeeId) {
+        return salaryRepository.findTopByEmployeeInfo_EmployeeIdOrderByDateContractDesc(employeeId);
     }
 
 }

@@ -17,6 +17,12 @@ public class AttendanceDTO {
 
     private String date;
 
+    private byte[] faceIn;
+
+    private byte[] faceOut;
+
     private boolean isFinish;
 
+    private boolean leaveRequest;
+    
 }

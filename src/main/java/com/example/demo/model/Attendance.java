@@ -18,8 +18,8 @@ public class Attendance {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "user_id")
-    private User user;
+    @JoinColumn(name = "employee_id")
+    private EmployeeInfo employeeInfo;
 
     private LocalDateTime checkIn;
 
@@ -27,6 +27,14 @@ public class Attendance {
 
     @Column(nullable = false)
     private LocalDate date;
+
+    @Column(name = "face_in", columnDefinition = "MEDIUMBLOB")
+    @Lob
+    private byte[] faceIn;
+
+    @Column(name = "face_out", columnDefinition = "MEDIUMBLOB")
+    @Lob
+    private byte[] faceOut;
 
     public boolean isFinish(){
         return checkIn != null && checkOut != null ;

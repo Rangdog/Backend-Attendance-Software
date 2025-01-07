@@ -12,7 +12,8 @@ public class RequestLeaveDTO {
     private String startTime;
     private String endTime;
     private String reason;
-    private Long userId;
+    private Long employee_id;
     private String userName;
-    private Boolean approve;
+    private String name;
+    private int approve;
 }

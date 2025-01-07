@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -21,11 +22,11 @@ public class RequestLeaveService {
     }
 
     public List<RequestLeave> getAllRequests() {
-        return requestLeaveRepository.findAll();
+        return requestLeaveRepository.findAllByOrderByStartTimeDesc();
     }
 
-    public List<RequestLeave> getRequestsByUser(Long userId) {
-        return requestLeaveRepository.findByUserId(userId);
+    public List<RequestLeave> getRequestsByEmployeeId(Long employeeId) {
+        return requestLeaveRepository.findAllByEmployeeInfo_EmployeeId(employeeId);
     }
 
     public RequestLeave createRequest(RequestLeave requestLeave) {
@@ -35,15 +36,15 @@ public class RequestLeaveService {
     public RequestLeave updateRequest(RequestLeave requestLeave) {
         return requestLeaveRepository.save(requestLeave);
     }
-    public List<RequestLeave> getApprovedLeaves(Long userId, int month, int year) {
-        return requestLeaveRepository.getApprovedLeavesByUserId(userId).stream()
+    public List<RequestLeave> getApprovedLeaves(Long employeeId, int month, int year) {
+        return requestLeaveRepository.getApprovedLeavesByEmployeeInfo_EmployeeId(employeeId).stream()
                 .filter(leave -> leave.getStartTime().getMonthValue() == month && leave.getStartTime().getYear() == year)
                 .collect(Collectors.toList());
     }
 
-    public boolean isCurrentlyOnApprovedLeave(Long userId) {
+    public boolean isCurrentlyOnApprovedLeave(Long employeeId) {
         // Lấy danh sách các yêu cầu nghỉ phép đã phê duyệt của người dùng
-        List<RequestLeave> approvedLeaves = requestLeaveRepository.getApprovedLeavesByUserId(userId);
+        List<RequestLeave> approvedLeaves = requestLeaveRepository.getApprovedLeavesByEmployeeInfo_EmployeeId(employeeId);
         LocalDateTime now = LocalDateTime.now();
 
         // Kiểm tra xem thời gian hiện tại có nằm trong bất kỳ khoảng thời gian nào không
@@ -56,9 +57,9 @@ public class RequestLeaveService {
         return false;
     }
 
-    public double getLeaveHoursForDay(Long userId, LocalDate currentDate) {
+    public double getLeaveHoursForDay(Long employeeId, LocalDate currentDate) {
         // Lấy danh sách các yêu cầu nghỉ phép đã phê duyệt của người dùng
-        List<RequestLeave> approvedLeaves = requestLeaveRepository.getApprovedLeavesByUserId(userId);
+        List<RequestLeave> approvedLeaves = requestLeaveRepository.getApprovedLeavesByEmployeeInfo_EmployeeId(employeeId);
 
         double totalLeaveHours = 0;
 
@@ -80,5 +81,65 @@ public class RequestLeaveService {
         }
 
         return totalLeaveHours;
+    }
+
+    public Boolean getUnApprovedLeaves(){
+        List<RequestLeave> requestLeaves = requestLeaveRepository.getUnApprovedLeaves();
+        return !requestLeaves.isEmpty();
+    }
+
+    public List<RequestLeave> getByDateAndEmployeeId(LocalDate date, Long employeeId){
+        LocalDateTime startOfDate = date.atStartOfDay();
+        return requestLeaveRepository.findByDateAndEmployeeId(startOfDate, employeeId);
+    }
+
+    public void deleteById(Long id){
+        requestLeaveRepository.deleteById(id);
+    }
+
+    public Boolean CheckOutOfTimeForMonth(Long employeeId, LocalDate curDate) {
+        // Tính tháng và năm từ curDate
+        int month = curDate.getMonthValue();
+        int year = curDate.getYear();
+
+        // Lấy số ngày trong tháng
+        YearMonth yearMonth = YearMonth.of(year, month);
+        int daysInMonth = yearMonth.lengthOfMonth();
+
+        // Tổng số giờ nghỉ trong tháng
+        double totalLeaveHoursForMonth = 0;
+
+        // Duyệt qua từng ngày của tháng
+        for (int day = 1; day <= daysInMonth; day++) {
+            LocalDate currentDate = LocalDate.of(year, month, day); // Tạo ngày hiện tại
+            double leaveHours = getLeaveHoursForDay(employeeId, currentDate); // Gọi hàm tính giờ nghỉ trong ngày
+            totalLeaveHoursForMonth += leaveHours; // Cộng dồn giờ nghỉ
+        }
+
+        // Kiểm tra nếu tổng giờ nghỉ > 9
+        return totalLeaveHoursForMonth > 9;
+    }
+
+    public Boolean CheckOutOfTimeForMonth(Long employeeId, LocalDate curDate, double hour) {
+        // Tính tháng và năm từ curDate
+        int month = curDate.getMonthValue();
+        int year = curDate.getYear();
+
+        // Lấy số ngày trong tháng
+        YearMonth yearMonth = YearMonth.of(year, month);
+        int daysInMonth = yearMonth.lengthOfMonth();
+
+        // Tổng số giờ nghỉ trong tháng
+        double totalLeaveHoursForMonth = 0;
+
+        // Duyệt qua từng ngày của tháng
+        for (int day = 1; day <= daysInMonth; day++) {
+            LocalDate currentDate = LocalDate.of(year, month, day); // Tạo ngày hiện tại
+            double leaveHours = getLeaveHoursForDay(employeeId, currentDate); // Gọi hàm tính giờ nghỉ trong ngày
+            totalLeaveHoursForMonth += leaveHours; // Cộng dồn giờ nghỉ
+        }
+
+        // Kiểm tra nếu tổng giờ nghỉ > 9
+        return totalLeaveHoursForMonth + hour> 9;
     }
 }

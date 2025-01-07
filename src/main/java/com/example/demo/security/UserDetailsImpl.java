@@ -15,13 +15,14 @@ public class UserDetailsImpl implements UserDetails {
     private String username;
     private String email;
     private String password;
+    private boolean isLocked; // Thêm thuộc tính kiểm tra trạng thái khóa
     private Collection<? extends GrantedAuthority> authorities;
 
-    public UserDetailsImpl(Long id, String username, String password, Collection<? extends GrantedAuthority> authorities) {
+    public UserDetailsImpl(Long id, String username, String password, boolean isLocked, Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.username = username;
-        this.email = email;
         this.password = password; // Lưu mật khẩu
+        this.isLocked = isLocked;
         this.authorities = authorities;
     }
 
@@ -33,6 +34,7 @@ public class UserDetailsImpl implements UserDetails {
                 user.getId(),
                 user.getUserName(),
                 user.getPassword(),
+                user.isLocked(),
                 authorities
         );
     }
@@ -59,7 +61,7 @@ public class UserDetailsImpl implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return !isLocked;
     }
 
     @Override

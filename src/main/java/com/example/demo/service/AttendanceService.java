@@ -2,8 +2,10 @@ package com.example.demo.service;
 
 import com.example.demo.DTO.AttendanceDTO;
 import com.example.demo.model.Attendance;
+import com.example.demo.model.EmployeeInfo;
 import com.example.demo.model.User;
 import com.example.demo.repository.AttendanceRepository;
+import com.example.demo.repository.EmployeeInfoRepository;
 import com.example.demo.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -25,33 +27,34 @@ public class AttendanceService {
     private AttendanceRepository attendanceRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private EmployeeInfoRepository employeeInfoRepository;
     public Attendance save(Attendance attendance){
         return attendanceRepository.save(attendance);
     }
-    public Attendance checkIn(Long userId) {
+    public Attendance checkIn(Long employee_id, byte[] faceIn) {
         Attendance attendance = new Attendance();
-        User user = userRepository.findUserById(userId);
-        attendance.setUser(user);
+        EmployeeInfo employeeInfo = employeeInfoRepository.findById(employee_id).orElse(null);
+        attendance.setEmployeeInfo(employeeInfo);
         attendance.setCheckIn(new Timestamp(System.currentTimeMillis()).toLocalDateTime());
         attendance.setDate(LocalDate.now());
+        attendance.setFaceIn(faceIn);
         attendanceRepository.save(attendance);
         return attendance;
     }
 
-    public Attendance checkOut(Long userId, Long attendanceId) {
+    public Attendance checkOut(Long userId, Long attendanceId, byte[] faceOut) {
         Attendance attendance = attendanceRepository.findById(attendanceId)
                 .orElseThrow(() -> new RuntimeException("No check-in record found for user."));
         attendance.setCheckOut(new Timestamp(System.currentTimeMillis()).toLocalDateTime());
+        attendance.setFaceOut(faceOut);
         return attendanceRepository.save(attendance);
     }
-    public List<Attendance> getAttendanceByUserAndDate(Long userId, LocalDate startDate, LocalDate endDate) {
-        return attendanceRepository.findByUserIdAndDateBetween(userId, startDate.plusDays(1), endDate.plusDays(1));
+    public List<Attendance> getAttendanceByUserAndDate(Long EmployeeInfo, LocalDate startDate, LocalDate endDate) {
+        return attendanceRepository.findByEmployeeIdAndDateBetween(EmployeeInfo, startDate.plusDays(1), endDate.plusDays(1));
     }
 
     // Lấy tất cả lịch sử chấm công của user
-    public List<Attendance> getAllAttendanceByUser(Long userId) {
-        return attendanceRepository.findAllByUserId(userId);
-    }
 
     public List<Attendance> getAttendanceByUserId(Long userId) {
         // Thêm logic để lấy dữ liệu chấm công theo userId
@@ -60,19 +63,19 @@ public class AttendanceService {
 
     public boolean hasCheckedInToday(Long userId) {
         LocalDate today = LocalDate.now();
-        return attendanceRepository.existsByUser_IdAndDate(userId, today);
+        return attendanceRepository.existsByEmployeeInfo_EmployeeIdAndDate(userId, today);
     }
 
-    public AttendanceDTO checkCheckInToday(Long userId){
+    public AttendanceDTO checkCheckInToday(Long employee_id){
         LocalDate today = LocalDate.now();
         System.out.println(today.format(DATE_FORMATTER));
-        Attendance attendance = attendanceRepository.findFirstByUser_IdAndDate(userId,today);
+        Attendance attendance = attendanceRepository.findFirstByEmployeeInfo_EmployeeIdAndDate(employee_id,today);
         AttendanceDTO attendanceDTO = new AttendanceDTO();
         if(attendance == null){
             return null;
         }
         attendanceDTO.setId(attendance.getId());
-        attendanceDTO.setUserId(attendance.getUser().getId());
+        attendanceDTO.setUserId(attendance.getEmployeeInfo().getUser().getId());
         if(attendance.getCheckIn() == null){
             attendanceDTO.setCheckIn("");
         }
@@ -95,13 +98,13 @@ public class AttendanceService {
         return attendanceDTO;
     }
 
-    public double getTotalHoursWorkedInMonth(Long userId, int year, Month month) {
+    public double getTotalHoursWorkedInMonth(Long employeeId, int year, Month month) {
         // Lấy ngày bắt đầu và ngày kết thúc của tháng
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
 
         // Lấy danh sách bản ghi chấm công trong tháng
-        List<Attendance> attendanceRecords = attendanceRepository.findByUserIdAndDateBetween(userId, startDate, endDate);
+        List<Attendance> attendanceRecords = attendanceRepository.findByEmployeeIdAndDateBetween(employeeId, startDate, endDate);
 
         // Tính tổng số giờ
         double totalHours = 0;
@@ -116,12 +119,12 @@ public class AttendanceService {
         return totalHours;
     }
 
-    public double calculatePenaltyHours(Long userId, int month, int year) {
+    public double calculatePenaltyHours(Long employeeId, int month, int year) {
         // Lấy danh sách record trong tháng của user
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
 
-        List<Attendance> attendanceRecords = attendanceRepository.findByUserIdAndDateBetween(userId, startDate, endDate);
+        List<Attendance> attendanceRecords = attendanceRepository.findByEmployeeIdAndDateBetween(employeeId, startDate, endDate);
 
         // Biến lưu tổng giờ phạt
         double totalPenaltyHours = 0;
@@ -159,7 +162,7 @@ public class AttendanceService {
 //        return attendanceRecords.size(); // Số ngày chấm công
 //    }
 
-    public Attendance getAttendanceByDate(Long userId, LocalDate currentDate){
-        return attendanceRepository.findFirstByUser_IdAndDate(userId,currentDate);
+    public Attendance getAttendanceByDate(Long employee_id, LocalDate currentDate){
+        return attendanceRepository.findFirstByEmployeeInfo_EmployeeIdAndDate(employee_id,currentDate);
     }
 }

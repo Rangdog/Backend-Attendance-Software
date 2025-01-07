@@ -23,6 +23,24 @@ public class EmployeeInfoController {
     private UserService userService;
 
     @GetMapping()
+    public ResponseEntity<List<EmployeeInfoDTO>> getAllEmployeeUnlock() {
+        List<EmployeeInfoDTO> employeeInfoDTOS = new ArrayList<>();
+        List<EmployeeInfo> employeeInfos = service.getAllEmployee();
+        for (EmployeeInfo employeeInfo : employeeInfos){
+            if(employeeInfo.getUser().isLocked()){
+                continue;
+            }
+            EmployeeInfoDTO employeeInfoDTO = new EmployeeInfoDTO();
+            employeeInfoDTO.setId(employeeInfo.getEmployeeId());
+            employeeInfoDTO.setUserId(employeeInfo.getUser().getId());
+            employeeInfoDTO.setFullName(employeeInfo.getFullName());
+            employeeInfoDTO.setLocked(employeeInfo.getUser().isLocked());
+            employeeInfoDTOS.add(employeeInfoDTO);
+        }
+        return ResponseEntity.ok(employeeInfoDTOS);
+    }
+
+    @GetMapping("/all")
     public ResponseEntity<List<EmployeeInfoDTO>> getAllEmployee() {
         List<EmployeeInfoDTO> employeeInfoDTOS = new ArrayList<>();
         List<EmployeeInfo> employeeInfos = service.getAllEmployee();
@@ -31,18 +49,25 @@ public class EmployeeInfoController {
             employeeInfoDTO.setId(employeeInfo.getEmployeeId());
             employeeInfoDTO.setUserId(employeeInfo.getUser().getId());
             employeeInfoDTO.setFullName(employeeInfo.getFullName());
+            employeeInfoDTO.setLocked(employeeInfo.getUser().isLocked());
             employeeInfoDTOS.add(employeeInfoDTO);
         }
         return ResponseEntity.ok(employeeInfoDTOS);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<EmployeeInfo> getEmployee(@PathVariable Long id) {
+    public ResponseEntity<EmployeeInfoDTO> getEmployee(@PathVariable Long id) {
+        EmployeeInfoDTO employeeInfoDTO = new EmployeeInfoDTO();
         EmployeeInfo employeeInfo = service.getEmployeeById(id);
         if(employeeInfo == null){
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(employeeInfo);
+        employeeInfoDTO.setId(employeeInfo.getEmployeeId());
+        employeeInfoDTO.setPosition(employeeInfo.getPosition());
+        employeeInfoDTO.setBirthYear(employeeInfo.getBirthYear());
+        employeeInfoDTO.setUserId(employeeInfo.getUser().getId());
+        employeeInfoDTO.setFullName(employeeInfo.getFullName());
+        return ResponseEntity.ok(employeeInfoDTO);
     }
 
     @PostMapping

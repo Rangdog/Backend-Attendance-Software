@@ -13,5 +13,5 @@ public class EmployeeInfoDTO {
     private String fullName;
     private String birthYear;
     private int position;
-
+    private boolean isLocked;
 }

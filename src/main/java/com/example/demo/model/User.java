@@ -25,12 +25,9 @@ public class User {
     private String password;
     @Enumerated(EnumType.STRING)
     private Role role;
-
-    @Lob
-    private byte[] faceData;
     @CreationTimestamp
     private LocalDateTime createdAt;
-
+    private boolean isLocked = false; // true: locked, false: unlocked
     public User(Long userId) {
         this.id = userId;
     }

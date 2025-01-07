@@ -2,8 +2,10 @@ package com.example.demo.controller;
 
 import com.example.demo.DTO.AuthRequest;
 import com.example.demo.DTO.AuthResponse;
+import com.example.demo.model.EmployeeInfo;
 import com.example.demo.model.User;
 import com.example.demo.security.JwtUtil;
+import com.example.demo.service.EmployeeInfoService;
 import com.example.demo.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +32,8 @@ public class AuthController {
     private UserService userService;
     @Autowired
     private AuthenticationManager authenticationManager;
+    @Autowired
+    private EmployeeInfoService employeeInfoService;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest authRequest) {
@@ -39,7 +43,8 @@ public class AuthController {
             );
             final UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername());
             User user = userService.findByUsername(userDetails.getUsername());
-            final String jwt = jwtUtil.generateToken(userDetails.getUsername(), userDetails.getAuthorities().toString(),user.getId() );
+            EmployeeInfo employeeInfo = employeeInfoService.findByUserId(user.getId());
+            final String jwt = jwtUtil.generateToken(userDetails.getUsername(), userDetails.getAuthorities().toString(),user.getId(), employeeInfo.getEmployeeId() );
             System.out.println(jwt);
             return ResponseEntity.ok(new AuthResponse(jwt));
         } catch (Exception e) {
